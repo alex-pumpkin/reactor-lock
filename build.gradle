@@ -1,0 +1,26 @@
+buildscript {
+    ext {
+        reactorVersion = '3.2.0.RELEASE'
+        lombokVersion = '1.18.2'
+        junitVersion = '4.12'
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'jacoco'
+
+group = 'com.github.alex-pumpkin'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation("io.projectreactor.addons:reactor-extra:${reactorVersion}")
+
+    compileOnly("org.projectlombok:lombok:${lombokVersion}")
+
+    testImplementation("junit:junit:${junitVersion}")
+}
