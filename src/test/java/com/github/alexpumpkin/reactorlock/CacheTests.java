@@ -50,15 +50,19 @@ public class CacheTests {
         AtomicInteger counter = new AtomicInteger();
         Mono<String> mono4Test = getMono4Test(counter);
 
-        Flux.merge(
+        Flux<String> flux = Flux.merge(
                 getCachedLockedMono("cacheKey", mono4Test, lockCommand),
                 getCachedLockedMono("cacheKey", mono4Test, lockCommand),
                 getCachedLockedMono("cacheKey", mono4Test, lockCommand),
                 getCachedLockedMono("cacheKey", mono4Test, lockCommand),
-                getCachedLockedMono("cacheKey", mono4Test, lockCommand))
-                .blockLast();
+                getCachedLockedMono("cacheKey", mono4Test, lockCommand));
 
+        flux.blockLast();
         Assert.assertEquals(1, counter.get());
+
+        CACHE.set(null);
+        flux.blockLast();
+        Assert.assertEquals(2, counter.get());
     }
 
     private Mono<String> getMono4Test(AtomicInteger counter) {
