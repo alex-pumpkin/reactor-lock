@@ -106,7 +106,7 @@ public final class Lock {
     public final <T> UnaryOperator<Mono<T>> retryTransformer() {
         return mono -> mono
                 .doOnError(LockIsNotAvailableException.class,
-                        error -> registerUnlockEventListener(error.getLockData(), unlockEventSink::next)
+                        error -> unlockEventsRegistry.register(error.getLockData(), unlockEventSink::next)
                                 .doOnNext(registered -> {
                                     if (!registered) unlockEventSink.next(0);
                                 })
@@ -119,7 +119,4 @@ public final class Lock {
                 }));
     }
 
-    private Mono<Boolean> registerUnlockEventListener(LockData lockData, Consumer<Integer> unlockEventListener) {
-        return unlockEventsRegistry.register(lockData, unlockEventListener);
-    }
 }
