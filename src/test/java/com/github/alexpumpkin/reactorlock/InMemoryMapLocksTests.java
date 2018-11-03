@@ -2,7 +2,6 @@ package com.github.alexpumpkin.reactorlock;
 
 import com.github.alexpumpkin.reactorlock.concurrency.Lock;
 import com.github.alexpumpkin.reactorlock.concurrency.LockCommand;
-import com.github.alexpumpkin.reactorlock.concurrency.exceptions.LockIsNotAvailableException;
 import com.github.alexpumpkin.reactorlock.concurrency.impl.InMemoryMapLockCommand;
 import com.github.alexpumpkin.reactorlock.concurrency.impl.InMemoryUnlockEventsRegistry;
 import org.junit.Assert;
@@ -10,7 +9,6 @@ import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
-import reactor.retry.Retry;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,9 +48,9 @@ public class InMemoryMapLocksTests {
     @Test
     public void testLockMaxDuration() {
         AtomicInteger maxConcurrentInvocations = new AtomicInteger();
-        Mono<String> helloMono = getMono4Test(1000L, new AtomicInteger(), maxConcurrentInvocations);
+        Mono<String> helloMono = getMono4Test(300L, new AtomicInteger(), maxConcurrentInvocations);
 
-        LockCommand lockCommand = new InMemoryMapLockCommand(Duration.ofMillis(200));
+        LockCommand lockCommand = new InMemoryMapLockCommand(Duration.ofMillis(100));
         Flux.merge(getLockedMono(helloMono, lockCommand),
                 getLockedMono(helloMono, lockCommand),
                 getLockedMono(helloMono, lockCommand),
@@ -88,9 +86,7 @@ public class InMemoryMapLocksTests {
         Lock lock = new Lock(lockCommand, "hello", new InMemoryUnlockEventsRegistry());
         return lock.tryLock(source)
                 .flatMap(s -> lock.unlock().then(Mono.just(s)))
-                .retryWhen(Retry.anyOf(LockIsNotAvailableException.class)
-                        .fixedBackoff(Duration.ofMillis(100))
-                        .retryMax(100));
+                .transform(lock.retryTransformer());
     }
 
     private class TestException extends Exception {

@@ -2,7 +2,10 @@ package com.github.alexpumpkin.reactorlock.concurrency;
 
 import com.github.alexpumpkin.reactorlock.concurrency.exceptions.LockIsNotAvailableException;
 import reactor.core.Exceptions;
-import reactor.core.publisher.*;
+import reactor.core.publisher.EmitterProcessor;
+import reactor.core.publisher.FluxSink;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Signal;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
@@ -18,7 +21,7 @@ public final class Lock {
     private final LockCommand lockCommand;
     private final LockData lockData;
     private final UnlockEventsRegistry unlockEventsRegistry;
-    private final Flux<Integer> unlockEvents;
+    private final EmitterProcessor<Integer> unlockEvents;
     private final FluxSink<Integer> unlockEventSink;
 
     public Lock(LockCommand lockCommand, String key, UnlockEventsRegistry unlockEventsRegistry) {
@@ -28,10 +31,8 @@ public final class Lock {
                 .uuid(UUID.randomUUID().toString())
                 .build();
         this.unlockEventsRegistry = unlockEventsRegistry;
-        EmitterProcessor<Integer> unlockEventsProcessor = EmitterProcessor.create(false);
-        this.unlockEventSink = unlockEventsProcessor.sink();
-        this.unlockEvents = unlockEventsProcessor.mergeWith(
-                Mono.just(2).delayElement(lockCommand.getMaxLockDuration()));
+        this.unlockEvents = EmitterProcessor.create(false);
+        this.unlockEventSink = unlockEvents.sink();
     }
 
     /**
@@ -115,6 +116,8 @@ public final class Lock {
                                 .doOnNext(registered -> {
                                     if (!registered) unlockEventSink.next(0);
                                 })
+                                    .then(Mono.just(2).map(unlockEventSink::next)
+                                            .delaySubscription(lockCommand.getMaxLockDuration()))
                                 .subscribe())
                 .doOnError(throwable -> !(throwable instanceof LockIsNotAvailableException),
                         ignored -> unlockEventSink.next(0))
