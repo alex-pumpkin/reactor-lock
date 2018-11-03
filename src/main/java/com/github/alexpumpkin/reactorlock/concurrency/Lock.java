@@ -116,8 +116,8 @@ public final class Lock {
                                 .doOnNext(registered -> {
                                     if (!registered) unlockEventSink.next(0);
                                 })
-                                    .then(Mono.just(2).map(unlockEventSink::next)
-                                            .delaySubscription(lockCommand.getMaxLockDuration()))
+                                .then(Mono.just(2).map(unlockEventSink::next)
+                                        .delaySubscription(lockCommand.getMaxLockDuration()))
                                 .subscribe())
                 .doOnError(throwable -> !(throwable instanceof LockIsNotAvailableException),
                         ignored -> unlockEventSink.next(0))
