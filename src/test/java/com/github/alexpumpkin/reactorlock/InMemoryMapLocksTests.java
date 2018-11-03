@@ -4,6 +4,7 @@ import com.github.alexpumpkin.reactorlock.concurrency.Lock;
 import com.github.alexpumpkin.reactorlock.concurrency.LockCommand;
 import com.github.alexpumpkin.reactorlock.concurrency.exceptions.LockIsNotAvailableException;
 import com.github.alexpumpkin.reactorlock.concurrency.impl.InMemoryMapLockCommand;
+import com.github.alexpumpkin.reactorlock.concurrency.impl.InMemoryUnlockEventsRegistry;
 import org.junit.Assert;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
@@ -80,11 +81,11 @@ public class InMemoryMapLocksTests {
             Thread.sleep(sleepDurationMillis);
             counter.decrementAndGet();
             return "hello";
-        }).subscribeOn(Schedulers.parallel());
+        }).subscribeOn(Schedulers.elastic());
     }
 
     private Mono<String> getLockedMono(Mono<String> source, LockCommand lockCommand) {
-        Lock lock = new Lock(lockCommand, "hello");
+        Lock lock = new Lock(lockCommand, "hello", new InMemoryUnlockEventsRegistry());
         return lock.tryLock(source)
                 .flatMap(s -> lock.unlock().then(Mono.just(s)))
                 .retryWhen(Retry.anyOf(LockIsNotAvailableException.class)

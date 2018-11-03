@@ -2,6 +2,8 @@ package com.github.alexpumpkin.reactorlock.concurrency.impl;
 
 import com.github.alexpumpkin.reactorlock.concurrency.LockCommand;
 import com.github.alexpumpkin.reactorlock.concurrency.LockData;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -19,20 +21,20 @@ public class InMemoryMapLockCommand implements LockCommand {
     }
 
     @Override
-    public boolean tryLock(LockData lockData) {
+    public Tuple2<Boolean, LockData> tryLock(LockData lockData) {
         LockData registryLockData = REGISTRY.computeIfAbsent(lockData.getKey(),
                 ignored -> lockData.toBuilder()
                         .acquiredDateTime(OffsetDateTime.now(ZoneOffset.UTC))
                         .build());
 
         if (Objects.equals(registryLockData, lockData)) {
-            return true;
+            return Tuples.of(true, lockData);
         } else if (registryLockData.getAcquiredDateTime()
                 .isBefore(OffsetDateTime.now(ZoneOffset.UTC).minus(maxDuration))) {
             return tryLock(lockData, registryLockData);
         }
 
-        return false;
+        return Tuples.of(false, registryLockData);
     }
 
     @Override
@@ -40,11 +42,16 @@ public class InMemoryMapLockCommand implements LockCommand {
         REGISTRY.remove(lockData.getKey(), lockData);
     }
 
-    private boolean tryLock(LockData lockData, LockData registryLockData) {
+    @Override
+    public Duration getMaxLockDuration() {
+        return maxDuration;
+    }
+
+    private Tuple2<Boolean, LockData> tryLock(LockData lockData, LockData registryLockData) {
         LockData newRegistryLockData = REGISTRY.compute(lockData.getKey(), (s, lockData1) ->
                 Objects.equals(lockData1, registryLockData) ? lockData.toBuilder()
                         .acquiredDateTime(OffsetDateTime.now(ZoneOffset.UTC))
                         .build() : lockData1);
-        return Objects.equals(newRegistryLockData, lockData);
+        return Tuples.of(Objects.equals(newRegistryLockData, lockData), Objects.requireNonNull(newRegistryLockData));
     }
 }

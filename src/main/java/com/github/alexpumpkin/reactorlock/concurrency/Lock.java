@@ -1,14 +1,16 @@
 package com.github.alexpumpkin.reactorlock.concurrency;
 
 import com.github.alexpumpkin.reactorlock.concurrency.exceptions.LockIsNotAvailableException;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.Signal;
+import reactor.core.Exceptions;
+import reactor.core.publisher.*;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 /**
  * Lock helper for Mono. If lock is not available generates error.
@@ -16,13 +18,21 @@ import java.util.function.BiFunction;
 public final class Lock {
     private final LockCommand lockCommand;
     private final LockData lockData;
+    private final UnlockEventsRegistry unlockEventsRegistry;
+    private final Flux<Integer> unlockEvents;
+    private final FluxSink<Integer> unlockEventSink;
 
-    public Lock(LockCommand lockCommand, String key) {
+    public Lock(LockCommand lockCommand, String key, UnlockEventsRegistry unlockEventsRegistry) {
         this.lockCommand = lockCommand;
         this.lockData = LockData.builder()
                 .key(key)
                 .uuid(UUID.randomUUID().toString())
                 .build();
+        this.unlockEventsRegistry = unlockEventsRegistry;
+        EmitterProcessor<Integer> unlockEventsProcessor = EmitterProcessor.create(false);
+        this.unlockEventSink = unlockEventsProcessor.sink();
+        this.unlockEvents = unlockEventsProcessor.mergeWith(
+                Mono.just(2).delayElement(lockCommand.getMaxLockDuration()));
     }
 
     /**
@@ -48,12 +58,13 @@ public final class Lock {
         return Mono.fromCallable(() -> lockCommand.tryLock(lockData))
                 .subscribeOn(scheduler)
                 .flatMap(isLocked -> {
-                    if (isLocked) {
-                        return source
-                                .switchIfEmpty(unlock().then(Mono.empty()))
-                                .onErrorResume(throwable -> unlock().then(Mono.error(throwable)));
+                    if (isLocked.getT1()) {
+                        return unlockEventsRegistry.add(lockData)
+                                .then(source
+                                        .switchIfEmpty(unlock().then(Mono.empty()))
+                                        .onErrorResume(throwable -> unlock().then(Mono.error(throwable))));
                     } else {
-                        return Mono.error(new LockIsNotAvailableException());
+                        return Mono.error(new LockIsNotAvailableException(isLocked.getT2()));
                     }
                 });
     }
@@ -75,6 +86,7 @@ public final class Lock {
      */
     public Mono<Void> unlock(Scheduler scheduler) {
         return Mono.<Void>fromRunnable(() -> lockCommand.unlock(lockData))
+                .then(unlockEventsRegistry.remove(lockData))
                 .subscribeOn(scheduler);
     }
 
@@ -89,5 +101,25 @@ public final class Lock {
         Objects.requireNonNull(cacheWriter);
         return cacheWriter.andThen(voidMono -> voidMono.then(unlock())
                 .onErrorResume(throwable -> unlock()));
+    }
+
+    public final <T> UnaryOperator<Mono<T>> retryTransformer() {
+        return mono -> mono
+                .doOnError(LockIsNotAvailableException.class,
+                        error -> registerUnlockEventListener(error.getLockData(), unlockEventSink::next)
+                                .doOnNext(registered -> {
+                                    if (!registered) unlockEventSink.next(0);
+                                })
+                                .subscribe())
+                .doOnError(throwable -> !(throwable instanceof LockIsNotAvailableException),
+                        ignored -> unlockEventSink.next(0))
+                .retryWhen(errorFlux -> errorFlux.zipWith(unlockEvents, (error, integer) -> {
+                    if (error instanceof LockIsNotAvailableException) return integer;
+                    else throw Exceptions.propagate(error);
+                }));
+    }
+
+    private Mono<Boolean> registerUnlockEventListener(LockData lockData, Consumer<Integer> unlockEventListener) {
+        return unlockEventsRegistry.register(lockData, unlockEventListener);
     }
 }
