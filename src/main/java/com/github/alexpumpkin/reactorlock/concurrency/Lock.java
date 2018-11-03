@@ -9,7 +9,6 @@ import reactor.core.scheduler.Schedulers;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 /**
@@ -103,6 +102,12 @@ public final class Lock {
                 .onErrorResume(throwable -> unlock()));
     }
 
+    /**
+     * Retry function to react on the unlock events.
+     *
+     * @param <T> Mono parameter.
+     * @return retry function.
+     */
     public final <T> UnaryOperator<Mono<T>> retryTransformer() {
         return mono -> mono
                 .doOnError(LockIsNotAvailableException.class,
