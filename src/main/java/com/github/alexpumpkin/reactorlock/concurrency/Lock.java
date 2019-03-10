@@ -6,8 +6,6 @@ import reactor.core.publisher.EmitterProcessor;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Signal;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -43,20 +41,7 @@ public final class Lock {
      * @return Mono wrapped by lock.
      */
     public final <T> Mono<T> tryLock(Mono<T> source) {
-        return tryLock(source, Schedulers.elastic());
-    }
-
-    /**
-     * Wrap source Mono to immediate lock and release on error.
-     *
-     * @param source    source Mono.
-     * @param scheduler scheduler to try lock.
-     * @param <T>       Mono parameter.
-     * @return Mono wrapped by lock.
-     */
-    public final <T> Mono<T> tryLock(Mono<T> source, Scheduler scheduler) {
         return Mono.fromCallable(() -> lockCommand.tryLock(lockData))
-                .subscribeOn(scheduler)
                 .flatMap(isLocked -> {
                     if (isLocked.getT1()) {
                         return unlockEventsRegistry.add(lockData)
@@ -74,20 +59,9 @@ public final class Lock {
      *
      * @return empty Mono completed after releasing lock.
      */
-    public final Mono<Void> unlock() {
-        return unlock(Schedulers.elastic());
-    }
-
-    /**
-     * Create Mono to release lock.
-     *
-     * @param scheduler scheduler to release lock.
-     * @return empty Mono completed after releasing lock.
-     */
-    public Mono<Void> unlock(Scheduler scheduler) {
+    public Mono<Void> unlock() {
         return Mono.<Void>fromRunnable(() -> lockCommand.unlock(lockData))
-                .then(unlockEventsRegistry.remove(lockData))
-                .subscribeOn(scheduler);
+                .then(unlockEventsRegistry.remove(lockData));
     }
 
     /**
