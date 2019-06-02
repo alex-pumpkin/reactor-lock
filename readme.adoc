@@ -1,21 +1,2 @@
-= Locking with reactor example
-
-Here you could find an example of the exclusive access to some resource with Reactor.
-Typical use case is synchronized cache for slow external resource.
-
-Wrapping `Mono` with `CacheMono` and exclusive lock example you could find in the CacheTests.java class.
-
-[code,java]
-----
-private Mono<T> getCachedLockedMono(String cacheKey, Mono<T> source) {
-    LockCommand lockCommand = new InMemoryMapLockCommand(Duration.ofSeconds(60));
-    Lock lock = new Lock(lockCommand, cacheKey, new InMemoryUnlockEventsRegistry());
-
-    return CacheMono.lookup(CACHE_READER, cacheKey)
-            // Lock and double check
-            .onCacheMissResume(() -> lock.tryLock(Mono.fromCallable(CACHE::get).switchIfEmpty(source)))
-            .andWriteWith(lock.unlockAfterCacheWriter(CACHE_WRITER))
-            // Retry if lock is not available
-            .transform(lock.retryTransformer());
-}
-----
+//todo: documentation and license
+= Reactor locking for Mono and CacheMono

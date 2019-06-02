@@ -1,8 +1,9 @@
 buildscript {
     ext {
-        reactorVersion = '3.2.0.RELEASE'
-        lombokVersion = '1.18.2'
+        reactorVersion = '3.2.3.RELEASE'
+        lombokVersion = '1.18.8'
         junitVersion = '4.12'
+        awaitilityVersion = '3.1.6'
     }
 }
 
@@ -10,7 +11,7 @@ apply plugin: 'java'
 apply plugin: 'jacoco'
 
 group = 'com.github.alex-pumpkin'
-version = '0.0.1-SNAPSHOT'
+version = '0.1.0-SNAPSHOT'
 sourceCompatibility = 1.8
 
 repositories {
@@ -20,7 +21,9 @@ repositories {
 dependencies {
     implementation("io.projectreactor.addons:reactor-extra:${reactorVersion}")
 
-    compileOnly("org.projectlombok:lombok:${lombokVersion}")
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 
     testImplementation("junit:junit:${junitVersion}")
+    testImplementation("org.awaitility:awaitility:${awaitilityVersion}")
 }

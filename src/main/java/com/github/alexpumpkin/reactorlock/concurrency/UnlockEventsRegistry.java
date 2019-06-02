@@ -4,6 +4,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.function.Consumer;
 
+//todo: documentation and license
 public interface UnlockEventsRegistry {
     /**
      * Add lock to registry.

@@ -1,9 +1,9 @@
 package com.github.alexpumpkin.reactorlock;
 
-import com.github.alexpumpkin.reactorlock.concurrency.Lock;
-import com.github.alexpumpkin.reactorlock.concurrency.LockCommand;
-import com.github.alexpumpkin.reactorlock.concurrency.impl.InMemoryMapLockCommand;
-import com.github.alexpumpkin.reactorlock.concurrency.impl.InMemoryUnlockEventsRegistry;
+import com.github.alexpumpkin.reactorlock.concurrency.LockCacheMono;
+import com.github.alexpumpkin.reactorlock.concurrency.LockMono;
+import org.awaitility.Awaitility;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -14,91 +14,140 @@ import reactor.core.publisher.Signal;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class CacheTests {
     private static final AtomicReference<String> CACHE = new AtomicReference<>();
+    private static final Map<String, Signal<String>> MAP_CACHE = new HashMap<>();
 
     @After
     public void after() {
         CACHE.set(null);
+        MAP_CACHE.clear();
     }
 
     @Test
     public void testNoLock() {
-        AtomicInteger counter = new AtomicInteger();
-        Mono<String> mono4Test = getMono4Test(counter);
+        AtomicInteger innerCounter = new AtomicInteger();
+        AtomicInteger resultCounter = new AtomicInteger();
+        AtomicBoolean delayFlag = new AtomicBoolean(false);
+        Mono<String> helloMono = Mono.defer(() ->
+                getCachedMono(getMono4Test(innerCounter, delayFlag)));
 
-        Flux.merge(
-                getCachedMono("cacheKey", mono4Test),
-                getCachedMono("cacheKey", mono4Test),
-                getCachedMono("cacheKey", mono4Test),
-                getCachedMono("cacheKey", mono4Test),
-                getCachedMono("cacheKey", mono4Test))
-                .blockLast();
+        Flux.range(0, 1000)
+                .parallel(100)
+                .runOn(Schedulers.elastic())
+                .flatMap(integer -> helloMono)
+                .subscribe(s -> resultCounter.incrementAndGet());
 
-        Assert.assertTrue(counter.get() > 1);
+        Mono.fromRunnable(() -> delayFlag.set(true))
+                .delaySubscription(Duration.ofMillis(10))
+                .subscribe();
+
+        Awaitility.await().atMost(10, TimeUnit.SECONDS)
+                .untilAtomic(resultCounter, equalTo(1000));
+
+        Assert.assertTrue(innerCounter.get() > 1);
     }
 
     @Test
     public void testWithLock() {
-        AtomicInteger counter = new AtomicInteger();
-        Mono<String> mono4Test = getMono4Test(counter);
+        AtomicInteger innerCounter = new AtomicInteger();
+        AtomicInteger resultCounter = new AtomicInteger();
+        Mono<String> helloMono = Mono.defer(() ->
+                getCachedLockedMono(getMono4Test(innerCounter, null)));
 
-        getFlux4TestWithLock(mono4Test).blockLast();
-        Assert.assertEquals(1, counter.get());
+        Flux.range(0, 1000)
+                .parallel(100)
+                .runOn(Schedulers.elastic())
+                .flatMap(integer -> helloMono)
+                .subscribe(s -> resultCounter.incrementAndGet());
+
+        Awaitility.await().atMost(10, TimeUnit.SECONDS)
+                .untilAtomic(resultCounter, equalTo(1000));
+
+        Assert.assertEquals(1, innerCounter.get());
 
         CACHE.set(null);
-        getFlux4TestWithLock(mono4Test).blockLast();
-        Assert.assertEquals(2, counter.get());
+        resultCounter.set(0);
+
+        Flux.range(0, 1000)
+                .parallel(100)
+                .runOn(Schedulers.elastic())
+                .flatMap(integer -> helloMono)
+                .subscribe(s -> resultCounter.incrementAndGet());
+
+        Awaitility.await().atMost(10, TimeUnit.SECONDS)
+                .untilAtomic(resultCounter, equalTo(1000));
+
+        Assert.assertEquals(2, innerCounter.get());
     }
 
     @Test
-    public void testWithLockNoDelay() {
-        AtomicInteger counter = new AtomicInteger();
-        Mono<String> mono4Test = Mono.fromCallable(() -> "hello " + counter.incrementAndGet())
-                .subscribeOn(Schedulers.elastic());
+    public void testWithLockMapCache() {
+        AtomicInteger innerCounter = new AtomicInteger();
+        AtomicInteger resultCounter = new AtomicInteger();
+        Mono<String> helloMono = Mono.defer(() ->
+                getCachedLockedMonoMapCache(getMono4Test(innerCounter, null)));
 
-        getFlux4TestWithLock(mono4Test).blockLast();
-        Assert.assertEquals(1, counter.get());
+        Flux.range(0, 1000)
+                .parallel(100)
+                .runOn(Schedulers.elastic())
+                .flatMap(integer -> helloMono)
+                .subscribe(s -> resultCounter.incrementAndGet());
 
-        CACHE.set(null);
-        getFlux4TestWithLock(mono4Test).blockLast();
-        Assert.assertEquals(2, counter.get());
+        Awaitility.await().atMost(10, TimeUnit.SECONDS)
+                .untilAtomic(resultCounter, equalTo(1000));
+
+        Assert.assertEquals(1, innerCounter.get());
+
+        MAP_CACHE.clear();
+        resultCounter.set(0);
+
+        Flux.range(0, 1000)
+                .parallel(100)
+                .runOn(Schedulers.elastic())
+                .flatMap(integer -> helloMono)
+                .subscribe(s -> resultCounter.incrementAndGet());
+
+        Awaitility.await().atMost(10, TimeUnit.SECONDS)
+                .untilAtomic(resultCounter, equalTo(1000));
+
+        Assert.assertEquals(2, innerCounter.get());
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testWithLockErrorMono() {
-        Mono<String> mono4Test = Mono.<String>error(new IllegalStateException())
-                .subscribeOn(Schedulers.elastic());
+        AtomicInteger counter = new AtomicInteger();
+        Mono<String> mono4Test = Mono.defer(() -> getCachedLockedMono(Mono.error(new IllegalStateException())))
+                .onErrorResume(IllegalStateException.class, e -> Mono.just("1"));
 
-        getFlux4TestWithLock(mono4Test).blockLast();
+        Flux.range(0, 1000)
+                .parallel(100)
+                .runOn(Schedulers.elastic())
+                .flatMap(integer -> mono4Test)
+                .subscribe(s -> counter.incrementAndGet());
+
+        Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAtomic(counter, Matchers.equalTo(1000));
     }
 
-    private Mono<String> getMono4Test(AtomicInteger counter) {
+    private Mono<String> getMono4Test(AtomicInteger counter, AtomicBoolean delayFlag) {
         return Mono.fromCallable(() -> {
-            Thread.sleep(50);
+            if (delayFlag != null) {
+                Awaitility.await().untilTrue(delayFlag);
+            }
             return "hello " + counter.incrementAndGet();
-        }).subscribeOn(Schedulers.elastic());
-    }
-
-    private Flux<String> getFlux4TestWithLock(Mono<String> mono4Test) {
-        return Flux.merge(
-                getCachedLockedMono("cacheKey", mono4Test),
-                getCachedLockedMono("cacheKey", mono4Test),
-                getCachedLockedMono("cacheKey", mono4Test),
-                getCachedLockedMono("cacheKey", mono4Test),
-                getCachedLockedMono("cacheKey", mono4Test),
-                getCachedLockedMono("cacheKey", mono4Test),
-                getCachedLockedMono("cacheKey", mono4Test),
-                getCachedLockedMono("cacheKey", mono4Test),
-                getCachedLockedMono("cacheKey", mono4Test),
-                getCachedLockedMono("cacheKey", mono4Test)
-        );
+        });
     }
 
     private static final BiFunction<String, Signal<? extends String>, Mono<Void>> CACHE_WRITER =
@@ -107,21 +156,28 @@ public class CacheTests {
     private static final Function<String, Mono<Signal<? extends String>>> CACHE_READER =
             k -> Mono.justOrEmpty(CACHE.get()).map(Signal::next);
 
-    private Mono<String> getCachedMono(String cacheKey, Mono<String> source) {
-        return CacheMono.lookup(CACHE_READER, cacheKey)
+    private Mono<String> getCachedMono(Mono<String> source) {
+        return CacheMono.lookup(CACHE_READER, "cacheKey")
                 .onCacheMissResume(() -> source)
                 .andWriteWith(CACHE_WRITER);
     }
 
-    private Mono<String> getCachedLockedMono(String cacheKey, Mono<String> source) {
-        LockCommand lockCommand = new InMemoryMapLockCommand(Duration.ofSeconds(60));
-        Lock lock = new Lock(lockCommand, cacheKey, new InMemoryUnlockEventsRegistry());
+    private Mono<String> getCachedLockedMono(Mono<String> source) {
+        LockMono lockMono = LockMono.key("cacheKey")
+                .maxLockDuration(Duration.ofSeconds(5))
+                .build();
+        return LockCacheMono.create(lockMono)
+                .lookup(CACHE_READER, "cacheKey")
+                .onCacheMissResume(() -> source)
+                .andWriteWith(CACHE_WRITER);
+    }
 
-        return CacheMono.lookup(CACHE_READER, cacheKey)
-                // Lock and double check
-                .onCacheMissResume(() -> lock.tryLock(Mono.fromCallable(CACHE::get).switchIfEmpty(source)))
-                .andWriteWith(lock.unlockAfterCacheWriter(CACHE_WRITER))
-                // Retry if lock is not available
-                .transform(lock.retryTransformer());
+    private Mono<String> getCachedLockedMonoMapCache(Mono<String> source) {
+        LockMono lockMono = LockMono.key("cacheKeyMap")
+                .maxLockDuration(Duration.ofSeconds(5))
+                .build();
+        return LockCacheMono.create(lockMono)
+                .lookup(MAP_CACHE, "cacheKeyMap")
+                .onCacheMissResume(() -> source);
     }
 }
