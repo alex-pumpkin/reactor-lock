@@ -1,6 +1,7 @@
 package com.github.alexpumpkin.reactorlock;
 
 import com.github.alexpumpkin.reactorlock.concurrency.LockMono;
+import lombok.extern.slf4j.Slf4j;
 import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Test;
@@ -9,35 +10,30 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.equalTo;
-
+@Slf4j
 public class InMemoryMapLocksTests {
 
     @Test
     public void testConcurrentInvocationsNoLock() {
         AtomicInteger maxConcurrentInvocations = new AtomicInteger();
         AtomicInteger innerCounter = new AtomicInteger();
-        AtomicInteger resultCounter = new AtomicInteger();
         AtomicBoolean delayFlag = new AtomicBoolean(false);
         Mono<String> helloMono = Mono.defer(() ->
                 getMono4Test(innerCounter, maxConcurrentInvocations, delayFlag));
 
-        Flux.range(0, 1000)
-                .parallel(100)
-                .runOn(Schedulers.elastic())
-                .flatMap(integer -> helloMono)
-                .subscribe(s -> resultCounter.incrementAndGet());
-
         Mono.fromRunnable(() -> delayFlag.set(true))
-                .delaySubscription(Duration.ofMillis(10))
+                .delaySubscription(Duration.ofMillis(100))
                 .subscribe();
 
-        Awaitility.await().atMost(10, TimeUnit.SECONDS)
-                .untilAtomic(resultCounter, equalTo(1000));
+        Flux.range(0, 2)
+                .parallel(2)
+                .runOn(Schedulers.elastic())
+                .flatMap(integer -> helloMono)
+                .sequential()
+                .blockLast(Duration.ofSeconds(10));
 
         Assert.assertTrue(maxConcurrentInvocations.get() > 1);
     }
@@ -46,7 +42,6 @@ public class InMemoryMapLocksTests {
     public void testConcurrentInvocationsWithLock() {
         AtomicInteger maxConcurrentInvocations = new AtomicInteger();
         AtomicInteger innerCounter = new AtomicInteger();
-        AtomicInteger resultCounter = new AtomicInteger();
         Duration maxDuration = Duration.ofSeconds(5);
         Mono<String> helloMono = Mono.defer(() ->
                 getLockedMono(getMono4Test(innerCounter, maxConcurrentInvocations, null), maxDuration));
@@ -55,10 +50,8 @@ public class InMemoryMapLocksTests {
                 .parallel(100)
                 .runOn(Schedulers.elastic())
                 .flatMap(integer -> helloMono)
-                .subscribe(s -> resultCounter.incrementAndGet());
-
-        Awaitility.await().atMost(10, TimeUnit.SECONDS)
-                .untilAtomic(resultCounter, equalTo(1000));
+                .sequential()
+                .blockLast(Duration.ofSeconds(10));
 
         Assert.assertEquals(1, maxConcurrentInvocations.get());
     }
@@ -67,32 +60,28 @@ public class InMemoryMapLocksTests {
     public void testLockMaxDuration() {
         AtomicInteger maxConcurrentInvocations = new AtomicInteger();
         AtomicInteger innerCounter = new AtomicInteger();
-        AtomicInteger resultCounter = new AtomicInteger();
         AtomicBoolean delayFlag = new AtomicBoolean(false);
         Duration maxDuration = Duration.ofMillis(10);
         Mono<String> helloMono = Mono.defer(() ->
                 getLockedMono(getMono4Test(innerCounter, maxConcurrentInvocations, delayFlag),
                         maxDuration));
 
-        Flux.range(0, 2)
-                .parallel(2)
-                .runOn(Schedulers.elastic())
-                .flatMap(integer -> helloMono)
-                .subscribe(s -> resultCounter.incrementAndGet());
-
         Mono.fromRunnable(() -> delayFlag.set(true))
                 .delaySubscription(Duration.ofMillis(100))
                 .subscribe();
 
-        Awaitility.await().atMost(10, TimeUnit.SECONDS)
-                .untilAtomic(resultCounter, equalTo(2));
+        Flux.range(0, 2)
+                .parallel(2)
+                .runOn(Schedulers.elastic())
+                .flatMap(integer -> helloMono)
+                .sequential()
+                .blockLast(Duration.ofSeconds(10));
 
         Assert.assertTrue(maxConcurrentInvocations.get() > 1);
     }
 
     @Test
     public void testUnlockWhenError() {
-        AtomicInteger counter = new AtomicInteger();
         Duration maxDuration = Duration.ofSeconds(5);
         Mono<String> helloMono = Mono.defer(() ->
                 getLockedMono(Mono.error(new TestException()), maxDuration)
@@ -102,18 +91,21 @@ public class InMemoryMapLocksTests {
                 .parallel(100)
                 .runOn(Schedulers.elastic())
                 .flatMap(integer -> helloMono)
-                .subscribe(s -> counter.incrementAndGet());
-
-        Awaitility.await().atMost(10, TimeUnit.SECONDS)
-                .untilAtomic(counter, equalTo(1000));
+                .sequential()
+                .blockLast(Duration.ofSeconds(10));
     }
 
     private Mono<String> getMono4Test(
             AtomicInteger counter, AtomicInteger maxCounterHolder, AtomicBoolean delayFlag) {
         return Mono.fromCallable(() -> {
-            int currentConcurrentInvocations = counter.incrementAndGet();
-            if (currentConcurrentInvocations > maxCounterHolder.get())
-                maxCounterHolder.set(currentConcurrentInvocations);
+            maxCounterHolder.updateAndGet(operand -> {
+                int currentConcurrentInvocations = counter.incrementAndGet();
+                if (currentConcurrentInvocations > operand) {
+                    return currentConcurrentInvocations;
+                } else {
+                    return operand;
+                }
+            });
             if (delayFlag != null) {
                 Awaitility.await().untilTrue(delayFlag);
             }
