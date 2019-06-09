@@ -1,7 +1,6 @@
 package com.github.alexpumpkin.reactorlock;
 
 import com.github.alexpumpkin.reactorlock.concurrency.LockMono;
-import lombok.extern.slf4j.Slf4j;
 import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Test;
@@ -13,7 +12,6 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-@Slf4j
 public class InMemoryMapLocksTests {
 
     @Test

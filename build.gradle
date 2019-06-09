@@ -4,6 +4,7 @@ buildscript {
         lombokVersion = '1.18.8'
         junitVersion = '4.12'
         awaitilityVersion = '3.1.6'
+        vavrVersion = '0.10.0'
     }
 }
 
@@ -20,7 +21,8 @@ repositories {
 
 dependencies {
     implementation("io.projectreactor.addons:reactor-extra:${reactorVersion}")
-
+    implementation("io.vavr:vavr:${vavrVersion}")
+    
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
     annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 
