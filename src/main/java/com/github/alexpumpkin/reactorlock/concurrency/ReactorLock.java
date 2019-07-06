@@ -25,10 +25,11 @@ public interface ReactorLock {
     /**
      * Try lock synchronously.
      *
-     * @param lockData lock data.
+     * @param lockData        lock data.
+     * @param maxLockDuration max lock duration.
      * @return {@code true} - lock is acquired, {@code false} - lock is busy.
      */
-    Mono<Tuple2<Boolean, LockData>> tryLock(LockData lockData);
+    Mono<Tuple2<Boolean, LockData>> tryLock(LockData lockData, Duration maxLockDuration);
 
     /**
      * Unlock.
@@ -36,11 +37,4 @@ public interface ReactorLock {
      * @param lockData lock data.
      */
     Mono<Void> unlock(LockData lockData);
-
-    /**
-     * Get max lock duration.
-     *
-     * @return duration.
-     */
-    Duration getMaxLockDuration();
 }

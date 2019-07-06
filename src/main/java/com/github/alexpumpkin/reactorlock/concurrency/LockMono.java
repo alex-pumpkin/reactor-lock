@@ -26,7 +26,6 @@ import reactor.core.publisher.UnicastProcessor;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 
@@ -43,12 +42,15 @@ public final class LockMono {
     private final FluxSink<Integer> unlockEventSink;
     private final UnlockEventsRegistry unlockEventsRegistry;
     private final ReactorLock reactorLock;
+    private final Duration maxLockDuration;
 
-    private LockMono(String key, ReactorLock reactorLock, UnlockEventsRegistry unlockEventsRegistry) {
+    private LockMono(String key, ReactorLock reactorLock, UnlockEventsRegistry unlockEventsRegistry,
+                     Duration maxLockDuration) {
         this.lockData = LockData.builder()
                 .key(key)
                 .uuid(UUID.randomUUID().toString())
                 .build();
+        this.maxLockDuration = maxLockDuration;
         this.unlockEvents = UnicastProcessor.create();
         this.unlockEventSink = unlockEvents.sink();
         this.reactorLock = reactorLock;
@@ -62,7 +64,7 @@ public final class LockMono {
     }
 
     <T> Mono<T> tryLock(Mono<T> source) {
-        return reactorLock.tryLock(lockData)
+        return reactorLock.tryLock(lockData, maxLockDuration)
                 .flatMap(isLocked -> {
                     if (isLocked.getT1()) {
                         return unlockEventsRegistry.add(lockData)
@@ -87,7 +89,7 @@ public final class LockMono {
                                     if (!registered) unlockEventSink.next(-1);
                                 })
                                 .then(Mono.just(2).map(unlockEventSink::next)
-                                        .delaySubscription(reactorLock.getMaxLockDuration()))
+                                        .delaySubscription(maxLockDuration))
                                 .subscribe())
                 .doOnError(throwable -> !(throwable instanceof LockIsNotAvailableException),
                         ignored -> unlockEventSink.next(0))
@@ -105,7 +107,7 @@ public final class LockMono {
         private static final Duration DEFAULT_MAX_LOCK_DURATION = Duration.ofSeconds(30);
         private final String key;
         private Duration maxLockDuration = DEFAULT_MAX_LOCK_DURATION;
-        private Function<Duration, ReactorLock> reactorLock;
+        private ReactorLock reactorLock;
         private UnlockEventsRegistry unlockEventsRegistry;
 
         private LockMonoBuilder(String key) {
@@ -117,7 +119,7 @@ public final class LockMono {
             return this;
         }
 
-        public LockMonoBuilder reactorLock(Function<Duration, ReactorLock> reactorLock) {
+        public LockMonoBuilder reactorLock(ReactorLock reactorLock) {
             this.reactorLock = reactorLock;
             return this;
         }
@@ -129,10 +131,13 @@ public final class LockMono {
 
         public LockMono build() {
             this.reactorLock = Optional.ofNullable(this.reactorLock)
-                    .orElseGet(() -> InMemoryMapReactorLock::new);
+                    .orElseGet(InMemoryMapReactorLock::new);
             this.unlockEventsRegistry = Optional.ofNullable(this.unlockEventsRegistry)
                     .orElse(InMemoryUnlockEventsRegistry.INSTANCE);
-            return new LockMono(this.key, this.reactorLock.apply(this.maxLockDuration), this.unlockEventsRegistry);
+            return new LockMono(this.key,
+                    this.reactorLock,
+                    this.unlockEventsRegistry,
+                    maxLockDuration);
         }
 
         public <T> Mono<T> lock(Mono<T> source) {

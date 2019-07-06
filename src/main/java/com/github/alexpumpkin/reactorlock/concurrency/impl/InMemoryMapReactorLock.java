@@ -34,20 +34,14 @@ import java.util.concurrent.atomic.AtomicReference;
 public class InMemoryMapReactorLock implements ReactorLock {
     private static final AtomicReference<Map<String, LockData>> REGISTRY = new AtomicReference<>();
 
-    private final Duration maxDuration;
-
-    public InMemoryMapReactorLock(Duration maxDuration) {
-        this.maxDuration = maxDuration;
-    }
-
     @Override
-    public Mono<Tuple2<Boolean, LockData>> tryLock(LockData lockData) {
+    public Mono<Tuple2<Boolean, LockData>> tryLock(LockData lockData, Duration maxLockDuration) {
         return Mono.fromCallable(() -> {
             LockData newRegistryLockData = REGISTRY.updateAndGet(map -> Option.of(map)
                     .getOrElse(HashMap::empty)
                     .computeIfPresent(lockData.getKey(), (s, registryLockData) -> {
                         if (registryLockData.getAcquiredDateTime()
-                                .isBefore(OffsetDateTime.now(ZoneOffset.UTC).minus(maxDuration))) {
+                                .isBefore(OffsetDateTime.now(ZoneOffset.UTC).minus(maxLockDuration))) {
                             return lockData.toBuilder()
                                     .acquiredDateTime(OffsetDateTime.now(ZoneOffset.UTC))
                                     .build();
@@ -73,10 +67,4 @@ public class InMemoryMapReactorLock implements ReactorLock {
                 .map(map1 -> map1.remove(lockData.getKey()))
                 .getOrElse(map)));
     }
-
-    @Override
-    public Duration getMaxLockDuration() {
-        return maxDuration;
-    }
-
 }
