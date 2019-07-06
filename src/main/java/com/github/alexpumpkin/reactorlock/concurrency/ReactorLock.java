@@ -20,14 +20,16 @@ import reactor.util.function.Tuple2;
 
 import java.time.Duration;
 
-//todo: documentation
+/**
+ * {@link ReactorLock} implementations provide the way to acquire and release lock in the asynchronous manner.
+ */
 public interface ReactorLock {
     /**
-     * Try lock synchronously.
+     * Try acquire given lock with max lock duration.
      *
      * @param lockData        lock data.
      * @param maxLockDuration max lock duration.
-     * @return {@code true} - lock is acquired, {@code false} - lock is busy.
+     * @return Mono with pair (is lock acquired, actual acquired {@link LockData}).
      */
     Mono<Tuple2<Boolean, LockData>> tryLock(LockData lockData, Duration maxLockDuration);
 
@@ -35,6 +37,7 @@ public interface ReactorLock {
      * Unlock.
      *
      * @param lockData lock data.
+     * @return empty Mono.
      */
     Mono<Void> unlock(LockData lockData);
 }

@@ -19,19 +19,20 @@ import lombok.*;
 
 import java.time.OffsetDateTime;
 
+/**
+ * This class represents lock entities with {@code key} to identify same operations (like same cache key etc),
+ * {@code uuid} for differentiation between entities and {@code acquiredDateTime} to control lock duration.
+ */
 @Builder(toBuilder = true)
 @EqualsAndHashCode
 @ToString
 public final class LockData {
-    // Lock key to identify same operation (same cache key, for example).
     @Getter
     @NonNull
     private final String key;
-    // Unique identifier for equals and hashCode.
     @NonNull
     private final String uuid;
     @Getter
     @EqualsAndHashCode.Exclude
-    // Date and time of the acquiring for lock duration limiting.
     private final OffsetDateTime acquiredDateTime;
 }

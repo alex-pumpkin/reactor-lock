@@ -19,7 +19,13 @@ import reactor.core.publisher.Mono;
 
 import java.util.function.Consumer;
 
-//todo: documentation
+/**
+ * Registry that contains unlock event listeners by {@link LockData}.
+ * <p>
+ * When lock is acquired we add it to {@link UnlockEventsRegistry}.<br/>
+ * If lock is busy, we register unlock event listener.<br/>
+ * When lock is released we remove it from {@link UnlockEventsRegistry} and call all registered unlock event listeners.
+ */
 public interface UnlockEventsRegistry {
     /**
      * Add lock to registry.
