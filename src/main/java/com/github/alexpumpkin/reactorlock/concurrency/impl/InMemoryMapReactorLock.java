@@ -17,6 +17,7 @@ package com.github.alexpumpkin.reactorlock.concurrency.impl;
 
 import com.github.alexpumpkin.reactorlock.concurrency.LockData;
 import com.github.alexpumpkin.reactorlock.concurrency.ReactorLock;
+import io.vavr.collection.Array;
 import io.vavr.collection.HashMap;
 import io.vavr.collection.Map;
 import io.vavr.control.Option;
@@ -31,13 +32,21 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 //todo: documentation
-public class InMemoryMapReactorLock implements ReactorLock {
-    private static final AtomicReference<Map<String, LockData>> REGISTRY = new AtomicReference<>();
+public final class InMemoryMapReactorLock implements ReactorLock {
+    public static final ReactorLock DEFAULT_INSTANCE = new InMemoryMapReactorLock(1024);
+
+    private final int concurrency;
+    private final Array<AtomicReference<Map<String, LockData>>> registry;
+
+    public InMemoryMapReactorLock(int concurrency) {
+        this.concurrency = concurrency;
+        this.registry = Array.fill(concurrency, AtomicReference::new);
+    }
 
     @Override
     public Mono<Tuple2<Boolean, LockData>> tryLock(LockData lockData, Duration maxLockDuration) {
         return Mono.fromCallable(() -> {
-            LockData newRegistryLockData = REGISTRY.updateAndGet(map -> Option.of(map)
+            LockData newRegistryLockData = getLockDataMapReference(lockData).updateAndGet(map -> Option.of(map)
                     .getOrElse(HashMap::empty)
                     .computeIfPresent(lockData.getKey(), (s, registryLockData) -> {
                         if (registryLockData.getAcquiredDateTime()
@@ -63,8 +72,12 @@ public class InMemoryMapReactorLock implements ReactorLock {
 
     @Override
     public Mono<Void> unlock(LockData lockData) {
-        return Mono.fromRunnable(() -> REGISTRY.updateAndGet(map -> Option.of(map)
+        return Mono.fromRunnable(() -> getLockDataMapReference(lockData).updateAndGet(map -> Option.of(map)
                 .map(map1 -> map1.remove(lockData.getKey()))
                 .getOrElse(map)));
+    }
+
+    private AtomicReference<Map<String, LockData>> getLockDataMapReference(LockData lockData) {
+        return registry.get(Math.abs(lockData.getKey().hashCode() % concurrency));
     }
 }

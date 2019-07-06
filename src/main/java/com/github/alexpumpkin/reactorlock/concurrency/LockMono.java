@@ -131,9 +131,9 @@ public final class LockMono {
 
         public LockMono build() {
             this.reactorLock = Optional.ofNullable(this.reactorLock)
-                    .orElseGet(InMemoryMapReactorLock::new);
+                    .orElse(InMemoryMapReactorLock.DEFAULT_INSTANCE);
             this.unlockEventsRegistry = Optional.ofNullable(this.unlockEventsRegistry)
-                    .orElse(InMemoryUnlockEventsRegistry.INSTANCE);
+                    .orElse(InMemoryUnlockEventsRegistry.DEFAULT_INSTANCE);
             return new LockMono(this.key,
                     this.reactorLock,
                     this.unlockEventsRegistry,
