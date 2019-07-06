@@ -32,11 +32,11 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 //todo: documentation
-public final class InMemoryMapReactorLock implements ReactorLock {
-    public static final ReactorLock DEFAULT_INSTANCE = new InMemoryMapReactorLock(1024);
+public final class InMemoryMapReactorLock<K> implements ReactorLock<K> {
+    private static final ReactorLock DEFAULT_INSTANCE = new InMemoryMapReactorLock(2);
 
     private final int concurrency;
-    private final Array<AtomicReference<Map<String, LockData>>> registry;
+    private final Array<AtomicReference<Map<K, LockData<K>>>> registry;
 
     public InMemoryMapReactorLock(int concurrency) {
         this.concurrency = concurrency;
@@ -44,9 +44,9 @@ public final class InMemoryMapReactorLock implements ReactorLock {
     }
 
     @Override
-    public Mono<Tuple2<Boolean, LockData>> tryLock(LockData lockData, Duration maxLockDuration) {
+    public Mono<Tuple2<Boolean, LockData<K>>> tryLock(LockData<K> lockData, Duration maxLockDuration) {
         return Mono.fromCallable(() -> {
-            LockData newRegistryLockData = getLockDataMapReference(lockData).updateAndGet(map -> Option.of(map)
+            LockData<K> newRegistryLockData = getLockDataMapReference(lockData).updateAndGet(map -> Option.of(map)
                     .getOrElse(HashMap::empty)
                     .computeIfPresent(lockData.getKey(), (s, registryLockData) -> {
                         if (registryLockData.getAcquiredDateTime()
@@ -71,13 +71,23 @@ public final class InMemoryMapReactorLock implements ReactorLock {
     }
 
     @Override
-    public Mono<Void> unlock(LockData lockData) {
+    public Mono<Void> unlock(LockData<K> lockData) {
         return Mono.fromRunnable(() -> getLockDataMapReference(lockData).updateAndGet(map -> Option.of(map)
                 .map(map1 -> map1.remove(lockData.getKey()))
                 .getOrElse(map)));
     }
 
-    private AtomicReference<Map<String, LockData>> getLockDataMapReference(LockData lockData) {
+    private AtomicReference<Map<K, LockData<K>>> getLockDataMapReference(LockData<K> lockData) {
         return registry.get(Math.abs(lockData.getKey().hashCode() % concurrency));
+    }
+
+    /**
+     * todo
+     * @param <K>
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    public static <K> ReactorLock<K> defaultInstance() {
+        return (ReactorLock<K>) DEFAULT_INSTANCE;
     }
 }

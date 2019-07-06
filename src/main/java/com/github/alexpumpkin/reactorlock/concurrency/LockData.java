@@ -22,14 +22,16 @@ import java.time.OffsetDateTime;
 /**
  * This class represents lock entities with {@code key} to identify same operations (like same cache key etc),
  * {@code uuid} for differentiation between entities and {@code acquiredDateTime} to control lock duration.
+ * <p>
+ * K - key type. It is required to override equals and hashCode for K type.
  */
 @Builder(toBuilder = true)
 @EqualsAndHashCode
 @ToString
-public final class LockData {
+public final class LockData<K> {
     @Getter
     @NonNull
-    private final String key;
+    private final K key;
     @NonNull
     private final String uuid;
     @Getter

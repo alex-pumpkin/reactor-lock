@@ -157,21 +157,19 @@ public class CacheTests {
     }
 
     private Mono<String> getCachedLockedMono(Mono<String> source) {
-        LockMono lockMono = LockMono.key("cacheKey")
+        return LockCacheMono.create(LockMono.key("cacheKey")
                 .maxLockDuration(Duration.ofSeconds(5))
-                .build();
-        return LockCacheMono.create(lockMono)
-                .lookup(CACHE_READER, "cacheKey")
+                .build())
+                .lookup(CACHE_READER)
                 .onCacheMissResume(() -> source)
                 .andWriteWith(CACHE_WRITER);
     }
 
     private Mono<String> getCachedLockedMonoMapCache(Mono<String> source) {
-        LockMono lockMono = LockMono.key("cacheKeyMap")
+        return LockCacheMono.create(LockMono.key("cacheKeyMap")
                 .maxLockDuration(Duration.ofSeconds(5))
-                .build();
-        return LockCacheMono.create(lockMono)
-                .lookup(MAP_CACHE, "cacheKeyMap")
+                .build())
+                .lookup(MAP_CACHE)
                 .onCacheMissResume(() -> source);
     }
 }

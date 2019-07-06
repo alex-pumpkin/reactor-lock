@@ -23,7 +23,7 @@ import java.time.Duration;
 /**
  * {@link ReactorLock} implementations provide the way to acquire and release lock in the asynchronous manner.
  */
-public interface ReactorLock {
+public interface ReactorLock<K> {
     /**
      * Try acquire given lock with max lock duration.
      *
@@ -31,7 +31,7 @@ public interface ReactorLock {
      * @param maxLockDuration max lock duration.
      * @return Mono with pair (is lock acquired, actual acquired {@link LockData}).
      */
-    Mono<Tuple2<Boolean, LockData>> tryLock(LockData lockData, Duration maxLockDuration);
+    Mono<Tuple2<Boolean, LockData<K>>> tryLock(LockData<K> lockData, Duration maxLockDuration);
 
     /**
      * Unlock.
@@ -39,5 +39,5 @@ public interface ReactorLock {
      * @param lockData lock data.
      * @return empty Mono.
      */
-    Mono<Void> unlock(LockData lockData);
+    Mono<Void> unlock(LockData<K> lockData);
 }

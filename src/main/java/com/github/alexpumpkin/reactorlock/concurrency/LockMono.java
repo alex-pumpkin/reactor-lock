@@ -36,17 +36,17 @@ import java.util.function.UnaryOperator;
  *
  * </p>
  */
-public final class LockMono {
-    private final LockData lockData;
+public final class LockMono<K> {
+    private final LockData<K> lockData;
     private final UnicastProcessor<Integer> unlockEvents;
     private final FluxSink<Integer> unlockEventSink;
     private final UnlockEventsRegistry unlockEventsRegistry;
-    private final ReactorLock reactorLock;
+    private final ReactorLock<K> reactorLock;
     private final Duration maxLockDuration;
 
-    private LockMono(String key, ReactorLock reactorLock, UnlockEventsRegistry unlockEventsRegistry,
+    private LockMono(K key, ReactorLock<K> reactorLock, UnlockEventsRegistry unlockEventsRegistry,
                      Duration maxLockDuration) {
-        this.lockData = LockData.builder()
+        this.lockData = LockData.<K>builder()
                 .key(key)
                 .uuid(UUID.randomUUID().toString())
                 .build();
@@ -99,42 +99,46 @@ public final class LockMono {
                 }));
     }
 
-    public static LockMonoBuilder key(String key) {
-        return new LockMonoBuilder(key);
+    K getKey() {
+        return lockData.getKey();
     }
 
-    public static final class LockMonoBuilder {
+    public static <K> LockMonoBuilder<K> key(K key) {
+        return new LockMonoBuilder<>(key);
+    }
+
+    public static final class LockMonoBuilder<K> {
         private static final Duration DEFAULT_MAX_LOCK_DURATION = Duration.ofSeconds(30);
-        private final String key;
+        private final K key;
         private Duration maxLockDuration = DEFAULT_MAX_LOCK_DURATION;
-        private ReactorLock reactorLock;
+        private ReactorLock<K> reactorLock;
         private UnlockEventsRegistry unlockEventsRegistry;
 
-        private LockMonoBuilder(String key) {
+        private LockMonoBuilder(K key) {
             this.key = key;
         }
 
-        public LockMonoBuilder maxLockDuration(Duration duration) {
+        public LockMonoBuilder<K> maxLockDuration(Duration duration) {
             this.maxLockDuration = duration;
             return this;
         }
 
-        public LockMonoBuilder reactorLock(ReactorLock reactorLock) {
+        public LockMonoBuilder<K> reactorLock(ReactorLock<K> reactorLock) {
             this.reactorLock = reactorLock;
             return this;
         }
 
-        public LockMonoBuilder unlockEventsRegistry(UnlockEventsRegistry unlockEventsRegistry) {
+        public LockMonoBuilder<K> unlockEventsRegistry(UnlockEventsRegistry unlockEventsRegistry) {
             this.unlockEventsRegistry = unlockEventsRegistry;
             return this;
         }
 
-        public LockMono build() {
+        public LockMono<K> build() {
             this.reactorLock = Optional.ofNullable(this.reactorLock)
-                    .orElse(InMemoryMapReactorLock.DEFAULT_INSTANCE);
+                    .orElse(InMemoryMapReactorLock.defaultInstance());
             this.unlockEventsRegistry = Optional.ofNullable(this.unlockEventsRegistry)
                     .orElse(InMemoryUnlockEventsRegistry.DEFAULT_INSTANCE);
-            return new LockMono(this.key,
+            return new LockMono<>(this.key,
                     this.reactorLock,
                     this.unlockEventsRegistry,
                     maxLockDuration);
