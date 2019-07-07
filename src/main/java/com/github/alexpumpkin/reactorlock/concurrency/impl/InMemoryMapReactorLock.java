@@ -31,9 +31,23 @@ import java.time.ZoneOffset;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
-//todo: documentation
+/**
+ * {@link ReactorLock} implementation with in-memory map registry.
+ * <p>
+ * <b>Important!</b> You should reuse same instance of the {@link InMemoryMapReactorLock} for all concurrent publishers
+ * wrapped with {@link com.github.alexpumpkin.reactorlock.concurrency.LockMono}. Default instance is good enough in many
+ * cases.
+ * </p>
+ * <p>
+ * Registry couldn't be implemented with {@link java.util.concurrent.ConcurrentHashMap} because of reentrant
+ * {@code synchronized} blocks in the {@link java.util.concurrent.ConcurrentHashMap} and work stealing. Same thread
+ * could initiate concurrent modification.
+ * </p>
+ *
+ * @param <K> {@link LockData} key type.
+ */
 public final class InMemoryMapReactorLock<K> implements ReactorLock<K> {
-    private static final ReactorLock DEFAULT_INSTANCE = new InMemoryMapReactorLock(2);
+    private static final ReactorLock DEFAULT_INSTANCE = new InMemoryMapReactorLock(1024);
 
     private final int concurrency;
     private final Array<AtomicReference<Map<K, LockData<K>>>> registry;
@@ -82,9 +96,10 @@ public final class InMemoryMapReactorLock<K> implements ReactorLock<K> {
     }
 
     /**
-     * todo
-     * @param <K>
-     * @return
+     * Get parametrized representation of the default instance with concurrency = 1024.
+     *
+     * @param <K> key type.
+     * @return default instance.
      */
     @SuppressWarnings("unchecked")
     public static <K> ReactorLock<K> defaultInstance() {

@@ -24,7 +24,19 @@ import reactor.core.publisher.Mono;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-//todo: documentation
+/**
+ * {@link UnlockEventsRegistry} implementation with in-memory map registry.
+ * <p>
+ * <b>Important!</b> You should reuse same instance of the {@link InMemoryMapReactorLock} for all concurrent publishers
+ * wrapped with {@link com.github.alexpumpkin.reactorlock.concurrency.LockMono}. Default instance is good enough in many
+ * cases.
+ * </p>
+ * <p>
+ * Registry couldn't be implemented with {@link java.util.concurrent.ConcurrentHashMap} because of reentrant
+ * {@code synchronized} blocks in the {@link java.util.concurrent.ConcurrentHashMap} and work stealing. Same thread
+ * could initiate concurrent modification.
+ * </p>
+ */
 public final class InMemoryUnlockEventsRegistry implements UnlockEventsRegistry {
     public static final UnlockEventsRegistry DEFAULT_INSTANCE = new InMemoryUnlockEventsRegistry(1024);
 

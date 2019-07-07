@@ -22,6 +22,8 @@ import java.time.Duration;
 
 /**
  * {@link ReactorLock} implementations provide the way to acquire and release lock in the asynchronous manner.
+ *
+ * @param <K> {@link LockData} key type.
  */
 public interface ReactorLock<K> {
     /**

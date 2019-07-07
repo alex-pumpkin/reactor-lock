@@ -3,7 +3,7 @@
 This library provides the way to perform any computations wrapped with Mono with exclusive locking.
 
 In most cases you should avoid to use it. But if you have the requirement to minimize concurrent calls of some services
-with or without caching, this library may be useful.
+with or without caching, reactor-lock may be useful.
 
 //todo: documentation
 
