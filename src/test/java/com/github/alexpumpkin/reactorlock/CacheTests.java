@@ -146,7 +146,7 @@ public class CacheTests {
 
     private static final BiFunction<String, Signal<? extends String>, Mono<Void>> CACHE_WRITER =
             (k, signal) -> Mono.fromRunnable(() -> Optional.ofNullable(signal.get())
-                    .ifPresent(o -> CACHE.set(signal.get())));
+                    .ifPresent(CACHE::set));
     private static final Function<String, Mono<Signal<? extends String>>> CACHE_READER =
             k -> Mono.justOrEmpty(CACHE.get()).map(Signal::next);
 

@@ -22,9 +22,17 @@ import reactor.core.publisher.Signal;
 import java.util.Map;
 import java.util.function.Function;
 
-//todo: documentation
 /**
- * Caching helper with exclusive access to writing operations. It is based on {@link CacheMono}.
+ * Caching helper with exclusive subscribing of the original {@link Mono}. It is based on {@link CacheMono}.
+ * <p>
+ * Example:
+ * <pre><code>
+ *     Mono&lt;Integer> cachedMono = LockCacheMono.create(LockMono.key("cacheKey").build())
+ *             .lookup(k -> {... Mono that reads from the cache ...})
+ *             .onCacheMissResume(() -> {... Original Mono ...})
+ *             .andWriteWith((k, signal) -> {... Mono that puts value to the cache ...});
+ * </code></pre>
+ * <p>
  *
  * @see CacheMono
  */

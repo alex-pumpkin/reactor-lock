@@ -24,16 +24,18 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 
 import java.time.Duration;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 
 
-//todo: documentation
 /**
- * Locking helper that wraps any {@link Mono} to access it in the exclusive manner by given string key.
+ * Locking helper that wraps any {@link Mono} to subscribe it in the exclusive manner by given key.
  * <p>
- *
+ * Example:
+ * <pre><code>
+ *     Mono&lt;Integer> lockedMono = LockMono.key("key")
+ *             .lock(Mono.fromCallable(() -> {...}));
+ * </code></pre>
  * </p>
  */
 public final class LockMono<K> {
@@ -57,6 +59,13 @@ public final class LockMono<K> {
         this.unlockEventsRegistry = unlockEventsRegistry;
     }
 
+    /**
+     * Transform given Mono to subscribe it in the exclusive manner.
+     *
+     * @param source original Mono.
+     * @param <T>    type of Mono.
+     * @return Mono with locking.
+     */
     public final <T> Mono<T> lock(Mono<T> source) {
         return tryLock(source)
                 .flatMap(s -> unlock().then(Mono.just(s)))
@@ -103,16 +112,23 @@ public final class LockMono<K> {
         return lockData.getKey();
     }
 
+    /**
+     * Create {@link LockMonoBuilder} with given key.
+     *
+     * @param key key that defines monos that should be subscribed in the exclusive manner.
+     * @param <K> key type. It is required to override equals and hashCode for K type.
+     * @return new {@link LockMonoBuilder} with default params.
+     */
     public static <K> LockMonoBuilder<K> key(K key) {
         return new LockMonoBuilder<>(key);
     }
 
     public static final class LockMonoBuilder<K> {
-        private static final Duration DEFAULT_MAX_LOCK_DURATION = Duration.ofSeconds(30);
+        private static final Duration DEFAULT_MAX_LOCK_DURATION = Duration.ofSeconds(60);
         private final K key;
         private Duration maxLockDuration = DEFAULT_MAX_LOCK_DURATION;
-        private ReactorLock<K> reactorLock;
-        private UnlockEventsRegistry unlockEventsRegistry;
+        private ReactorLock<K> reactorLock = InMemoryMapReactorLock.defaultInstance();
+        private UnlockEventsRegistry unlockEventsRegistry = InMemoryUnlockEventsRegistry.DEFAULT_INSTANCE;
 
         private LockMonoBuilder(K key) {
             this.key = key;
@@ -134,16 +150,19 @@ public final class LockMono<K> {
         }
 
         public LockMono<K> build() {
-            this.reactorLock = Optional.ofNullable(this.reactorLock)
-                    .orElse(InMemoryMapReactorLock.defaultInstance());
-            this.unlockEventsRegistry = Optional.ofNullable(this.unlockEventsRegistry)
-                    .orElse(InMemoryUnlockEventsRegistry.DEFAULT_INSTANCE);
             return new LockMono<>(this.key,
                     this.reactorLock,
                     this.unlockEventsRegistry,
                     maxLockDuration);
         }
 
+        /**
+         * Build {@link LockMono} and wrap given Mono to subscribe it in the exclusive manner.
+         *
+         * @param source original Mono.
+         * @param <T>    type of Mono.
+         * @return Mono with locking.
+         */
         public <T> Mono<T> lock(Mono<T> source) {
             return build().lock(source);
         }

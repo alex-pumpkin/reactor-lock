@@ -1,11 +1,55 @@
 = Exclusive locking for Mono and CacheMono in the reactive style
 
-This library provides the way to perform any computations wrapped with Mono with exclusive locking.
+This library provides the way to perform any computations wrapped with Mono with exclusive locking in the reactive
+manner.
 
 In most cases you should avoid to use it. But if you have the requirement to minimize concurrent calls of some services
 with or without caching, reactor-lock may be useful.
 
-//todo: documentation
+== How to use
+
+=== Exclusive subscription by key
+```java
+public <K, V> Mono<V> callServiceByKeyWithLock(K key) {
+    return LockMono.key(key)
+            .lock(callServiceByKey(key));
+}
+
+private <K, V> Mono<V> callServiceByKey(K key) {
+    return Mono.fromCallable(() -> {...});
+}
+```
+
+=== Caching with exclusive subscription to the original Mono
+==== Cache doesn't implement Map interface
+```java
+public <K, V> Mono<V> callServiceByKeyWithCache(K key) {
+    return LockCacheMono.create(LockMono.key(key).build())
+            .lookup(k -> Mono.justOrEmpty(CACHE.get(k)).map(Signal::next))
+            .onCacheMissResume(() -> callServiceByKey(key))
+            .andWriteWith((k, signal) -> Mono.fromRunnable(() -> Optional.ofNullable(signal.get())
+                    .ifPresent(v -> CACHE.put(k, v))));
+}
+
+private <K, V> Mono<V> callServiceByKey(K key) {
+    return Mono.fromCallable(() -> {...});
+}
+```
+
+==== Cache implements Map interface
+```java
+Map<K, Signal<V>> MAP_CACHE = ...;
+
+public <K, V> Mono<V> callServiceByKeyWithCache(K key) {
+    return LockCacheMono.create(LockMono.key(key).build())
+            .lookup(MAP_CACHE)
+            .onCacheMissResume(() -> callServiceByKey(key));
+}
+
+private <K, V> Mono<V> callServiceByKey(K key) {
+    return Mono.fromCallable(() -> {...});
+}
+```
 
 == License
 
