@@ -1,21 +1,65 @@
-= Locking with reactor example
+= Exclusive locking for Mono and CacheMono in the reactive style
 
-Here you could find an example of the exclusive access to some resource with Reactor.
-Typical use case is synchronized cache for slow external resource.
+This library provides the way to perform any computations wrapped with Mono with exclusive locking in the reactive
+manner.
 
-Wrapping `Mono` with `CacheMono` and exclusive lock example you could find in the CacheTests.java class.
+In most cases you should avoid to use it. But if you have the requirement to minimize concurrent calls of some services
+with or without caching, reactor-lock may be useful.
 
-[code,java]
-----
-private Mono<T> getCachedLockedMono(String cacheKey, Mono<T> source) {
-    LockCommand lockCommand = new InMemoryMapLockCommand(Duration.ofSeconds(60));
-    Lock lock = new Lock(lockCommand, cacheKey, new InMemoryUnlockEventsRegistry());
+== How to use
 
-    return CacheMono.lookup(CACHE_READER, cacheKey)
-            // Lock and double check
-            .onCacheMissResume(() -> lock.tryLock(Mono.fromCallable(CACHE::get).switchIfEmpty(source)))
-            .andWriteWith(lock.unlockAfterCacheWriter(CACHE_WRITER))
-            // Retry if lock is not available
-            .transform(lock.retryTransformer());
+=== Exclusive subscription by key
+```java
+public <K, V> Mono<V> callServiceByKeyWithLock(K key) {
+    return LockMono.key(key)
+            .lock(callServiceByKey(key));
 }
-----
+
+private <K, V> Mono<V> callServiceByKey(K key) {
+    return Mono.fromCallable(() -> {...});
+}
+```
+
+=== Caching with exclusive subscription to the original Mono
+==== Cache doesn't implement Map interface
+```java
+public <K, V> Mono<V> callServiceByKeyWithCache(K key) {
+    return LockCacheMono.create(LockMono.key(key).build())
+            .lookup(k -> Mono.justOrEmpty(CACHE.get(k)).map(Signal::next))
+            .onCacheMissResume(() -> callServiceByKey(key))
+            .andWriteWith((k, signal) -> Mono.fromRunnable(() -> Optional.ofNullable(signal.get())
+                    .ifPresent(v -> CACHE.put(k, v))));
+}
+
+private <K, V> Mono<V> callServiceByKey(K key) {
+    return Mono.fromCallable(() -> {...});
+}
+```
+
+==== Cache implements Map interface
+```java
+Map<K, Signal<V>> MAP_CACHE = ...;
+
+public <K, V> Mono<V> callServiceByKeyWithCache(K key) {
+    return LockCacheMono.create(LockMono.key(key).build())
+            .lookup(MAP_CACHE)
+            .onCacheMissResume(() -> callServiceByKey(key));
+}
+
+private <K, V> Mono<V> callServiceByKey(K key) {
+    return Mono.fromCallable(() -> {...});
+}
+```
+
+== License
+
+Copyright 2019 Alexander Pankin
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
+License. You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific
+language governing permissions and limitations under the License.
