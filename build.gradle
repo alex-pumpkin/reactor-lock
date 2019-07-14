@@ -11,6 +11,9 @@ buildscript {
 subprojects {
     apply plugin: 'java'
     apply plugin: 'jacoco'
+    apply plugin: 'maven'
+    apply plugin: 'signing'
+    apply from: '../publishing.gradle'
 
     group = 'com.github.alex-pumpkin'
     version = '0.1.0'
