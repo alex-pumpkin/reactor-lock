@@ -1,0 +1,63 @@
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from javadoc
+}
+
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+artifacts {
+    archives javadocJar, sourcesJar
+}
+
+signing {
+    sign configurations.archives
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            pom.project {
+                name 'reactor-lock'
+                packaging 'jar'
+                // optionally artifactId can be defined here
+                description 'This library provides the way to perform any computations wrapped with ' +
+                        'reactor.core.publisher.Mono with exclusive locking in the reactive manner.'
+                url 'https://github.com/alex-pumpkin/reactor-lock'
+
+                scm {
+                    connection 'scm:git:git://github.com/alex-pumpkin/reactor-lock.git'
+                    developerConnection 'scm:git:ssh://github.com:alex-pumpkin/reactor-lock.git'
+                    url 'http://github.com/alex-pumpkin/reactor-lock/tree/master'
+                }
+
+                licenses {
+                    license {
+                        name 'The Apache License, Version 2.0'
+                        url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id 'alex-pumpkin'
+                        name 'Alexander Pankin'
+                        email 'as.pankin@gmail.com'
+                    }
+                }
+            }
+        }
+    }
+}
