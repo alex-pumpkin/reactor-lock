@@ -8,24 +8,27 @@ buildscript {
     }
 }
 
-apply plugin: 'java'
-apply plugin: 'jacoco'
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'jacoco'
 
-group = 'com.github.alex-pumpkin'
-version = '0.1.0-SNAPSHOT'
-sourceCompatibility = 1.8
+    group = 'com.github.alex-pumpkin'
+    version = '0.1.0'
+    sourceCompatibility = 1.8
 
-repositories {
-    mavenCentral()
-}
+    repositories {
+        mavenCentral()
+    }
 
-dependencies {
-    implementation("io.projectreactor.addons:reactor-extra:${reactorVersion}")
-    implementation("io.vavr:vavr:${vavrVersion}")
-    
-    compileOnly "org.projectlombok:lombok:${lombokVersion}"
-    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+    dependencies {
+        implementation("io.projectreactor.addons:reactor-extra:${reactorVersion}")
+        implementation("io.vavr:vavr:${vavrVersion}")
 
-    testImplementation("junit:junit:${junitVersion}")
-    testImplementation("org.awaitility:awaitility:${awaitilityVersion}")
+        compileOnly "org.projectlombok:lombok:${lombokVersion}"
+        annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+
+        testImplementation("junit:junit:${junitVersion}")
+        testImplementation("org.awaitility:awaitility:${awaitilityVersion}")
+    }
+
 }
