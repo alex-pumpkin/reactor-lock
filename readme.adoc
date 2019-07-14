@@ -6,7 +6,21 @@ manner.
 In most cases you should avoid to use it. But if you have the requirement to minimize concurrent calls of some services
 with or without caching, reactor-lock may be useful.
 
-== How to use
+== Usage
+=== Dependencies
+==== Maven
+```xml
+<dependency>
+  <groupId>com.github.alex-pumpkin</groupId>
+  <artifactId>reactor-lock-core</artifactId>
+  <version>0.1.0</version>
+</dependency>
+```
+
+==== Gradle
+```groovy
+implementation 'com.github.alex-pumpkin:reactor-lock-core:0.1.0'
+```
 
 === Exclusive subscription by key
 ```java
