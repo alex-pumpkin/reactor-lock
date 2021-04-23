@@ -1,7 +1,8 @@
 buildscript {
     ext {
-        reactorVersion = '3.2.3.RELEASE'
-        lombokVersion = '1.18.8'
+        reactorVersion = '3.4.5'
+        reactorAddonsVersion = '3.4.1'
+        lombokVersion = '1.18.16'
         junitVersion = '4.12'
         awaitilityVersion = '3.1.6'
         vavrVersion = '0.10.0'
@@ -24,7 +25,8 @@ subprojects {
     }
 
     dependencies {
-        implementation("io.projectreactor.addons:reactor-extra:${reactorVersion}")
+        implementation("io.projectreactor:reactor-core:${reactorVersion}")
+        implementation("io.projectreactor.addons:reactor-extra:${reactorAddonsVersion}")
         implementation("io.vavr:vavr:${vavrVersion}")
 
         compileOnly "org.projectlombok:lombok:${lombokVersion}"

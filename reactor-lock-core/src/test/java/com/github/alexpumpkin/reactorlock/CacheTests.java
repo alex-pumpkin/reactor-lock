@@ -60,7 +60,7 @@ public class CacheTests {
 
         Flux.range(0, 1000)
                 .parallel(100)
-                .runOn(Schedulers.elastic())
+                .runOn(Schedulers.boundedElastic())
                 .flatMap(integer -> helloMono)
                 .sequential()
                 .blockLast(Duration.ofSeconds(10));
@@ -76,7 +76,7 @@ public class CacheTests {
 
         Flux.range(0, 1000)
                 .parallel(100)
-                .runOn(Schedulers.elastic())
+                .runOn(Schedulers.boundedElastic())
                 .flatMap(integer -> helloMono)
                 .sequential()
                 .blockLast(Duration.ofSeconds(10));
@@ -87,7 +87,7 @@ public class CacheTests {
 
         Flux.range(0, 1000)
                 .parallel(100)
-                .runOn(Schedulers.elastic())
+                .runOn(Schedulers.boundedElastic())
                 .flatMap(integer -> helloMono)
                 .sequential()
                 .blockLast(Duration.ofSeconds(10));
@@ -103,7 +103,7 @@ public class CacheTests {
 
         Flux.range(0, 1000)
                 .parallel(100)
-                .runOn(Schedulers.elastic())
+                .runOn(Schedulers.boundedElastic())
                 .flatMap(integer -> helloMono)
                 .sequential()
                 .blockLast(Duration.ofSeconds(10));
@@ -114,7 +114,7 @@ public class CacheTests {
 
         Flux.range(0, 1000)
                 .parallel(100)
-                .runOn(Schedulers.elastic())
+                .runOn(Schedulers.boundedElastic())
                 .flatMap(integer -> helloMono)
                 .sequential()
                 .blockLast(Duration.ofSeconds(10));
@@ -129,7 +129,7 @@ public class CacheTests {
 
         Flux.range(0, 1000)
                 .parallel(100)
-                .runOn(Schedulers.elastic())
+                .runOn(Schedulers.boundedElastic())
                 .flatMap(integer -> mono4Test)
                 .sequential()
                 .blockLast(Duration.ofSeconds(10));

@@ -19,12 +19,14 @@ import com.github.alexpumpkin.reactorlock.concurrency.exceptions.LockIsNotAvaila
 import com.github.alexpumpkin.reactorlock.concurrency.impl.InMemoryMapReactorLock;
 import com.github.alexpumpkin.reactorlock.concurrency.impl.InMemoryUnlockEventsRegistry;
 import reactor.core.Exceptions;
-import reactor.core.publisher.FluxSink;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.UnicastProcessor;
+import reactor.core.publisher.Sinks;
+import reactor.util.retry.Retry;
 
 import java.time.Duration;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 
@@ -40,8 +42,8 @@ import java.util.function.UnaryOperator;
  */
 public final class LockMono<K> {
     private final LockData<K> lockData;
-    private final UnicastProcessor<Integer> unlockEvents;
-    private final FluxSink<Integer> unlockEventSink;
+    private final Flux<Integer> unlockEvents;
+    private final Consumer<Integer> unlockEventSink;
     private final UnlockEventsRegistry unlockEventsRegistry;
     private final ReactorLock<K> reactorLock;
     private final Duration maxLockDuration;
@@ -53,8 +55,9 @@ public final class LockMono<K> {
                 .uuid(UUID.randomUUID().toString())
                 .build();
         this.maxLockDuration = maxLockDuration;
-        this.unlockEvents = UnicastProcessor.create();
-        this.unlockEventSink = unlockEvents.sink();
+        Sinks.Many<Integer> sinksMany = Sinks.many().unicast().onBackpressureBuffer();
+        this.unlockEventSink = unlockCode -> sinksMany.emitNext(unlockCode, Sinks.EmitFailureHandler.FAIL_FAST);
+        this.unlockEvents = sinksMany.asFlux().log();
         this.reactorLock = reactorLock;
         this.unlockEventsRegistry = unlockEventsRegistry;
     }
@@ -75,7 +78,7 @@ public final class LockMono<K> {
     <T> Mono<T> tryLock(Mono<T> source) {
         return reactorLock.tryLock(lockData, maxLockDuration)
                 .flatMap(isLocked -> {
-                    if (isLocked.getT1()) {
+                    if (Boolean.TRUE.equals(isLocked.getT1())) {
                         return unlockEventsRegistry.add(lockData)
                                 .then(source.switchIfEmpty(unlock().then(Mono.empty()))
                                         .onErrorResume(throwable -> unlock().then(Mono.error(throwable))));
@@ -93,19 +96,20 @@ public final class LockMono<K> {
     <T> UnaryOperator<Mono<T>> retryTransformer() {
         return mono -> mono
                 .doOnError(LockIsNotAvailableException.class,
-                        error -> unlockEventsRegistry.register(error.getLockData(), unlockEventSink::next)
+                        error -> unlockEventsRegistry.register(error.getLockData(), unlockEventSink)
                                 .doOnNext(registered -> {
-                                    if (!registered) unlockEventSink.next(-1);
+                                    if (Boolean.FALSE.equals(registered)) unlockEventSink.accept(-1);
                                 })
-                                .then(Mono.just(2).map(unlockEventSink::next)
+                                .then(Mono.just(2).doOnNext(unlockEventSink)
                                         .delaySubscription(maxLockDuration))
                                 .subscribe())
                 .doOnError(throwable -> !(throwable instanceof LockIsNotAvailableException),
-                        ignored -> unlockEventSink.next(0))
-                .retryWhen(errorFlux -> errorFlux.zipWith(unlockEvents, (error, integer) -> {
-                    if (error instanceof LockIsNotAvailableException) return integer;
-                    else throw Exceptions.propagate(error);
-                }));
+                        ignored -> unlockEventSink.accept(0))
+                .retryWhen(Retry.from(retrySignalFlux -> retrySignalFlux.zipWith(unlockEvents,
+                        (retrySignal, integer) -> {
+                            if (retrySignal.failure() instanceof LockIsNotAvailableException) return integer;
+                            else throw Exceptions.propagate(retrySignal.failure());
+                        })));
     }
 
     K getKey() {

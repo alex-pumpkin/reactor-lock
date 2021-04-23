@@ -43,7 +43,7 @@ public class InMemoryMapLocksTests {
 
         Flux.range(0, 2)
                 .parallel(2)
-                .runOn(Schedulers.elastic())
+                .runOn(Schedulers.boundedElastic())
                 .flatMap(integer -> helloMono)
                 .sequential()
                 .blockLast(Duration.ofSeconds(10));
@@ -61,7 +61,7 @@ public class InMemoryMapLocksTests {
 
         Flux.range(0, 1000)
                 .parallel(100)
-                .runOn(Schedulers.elastic())
+                .runOn(Schedulers.boundedElastic())
                 .flatMap(integer -> helloMono)
                 .sequential()
                 .blockLast(Duration.ofSeconds(10));
@@ -76,7 +76,7 @@ public class InMemoryMapLocksTests {
         AtomicBoolean delayFlag = new AtomicBoolean(false);
         Duration maxDuration = Duration.ofMillis(10);
         Mono<String> helloMono = Mono.defer(() ->
-                getLockedMono(getMono4Test(innerCounter, maxConcurrentInvocations, delayFlag),
+                getLockedMono(getMono4Test(innerCounter, maxConcurrentInvocations, delayFlag).log(),
                         maxDuration));
 
         Mono.fromRunnable(() -> delayFlag.set(true))
@@ -85,7 +85,7 @@ public class InMemoryMapLocksTests {
 
         Flux.range(0, 2)
                 .parallel(2)
-                .runOn(Schedulers.elastic())
+                .runOn(Schedulers.boundedElastic())
                 .flatMap(integer -> helloMono)
                 .sequential()
                 .blockLast(Duration.ofSeconds(10));
@@ -102,7 +102,7 @@ public class InMemoryMapLocksTests {
 
         Flux.range(0, 1000)
                 .parallel(100)
-                .runOn(Schedulers.elastic())
+                .runOn(Schedulers.boundedElastic())
                 .flatMap(integer -> helloMono)
                 .sequential()
                 .blockLast(Duration.ofSeconds(10));
