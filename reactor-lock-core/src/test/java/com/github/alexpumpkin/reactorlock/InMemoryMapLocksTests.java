@@ -76,7 +76,7 @@ public class InMemoryMapLocksTests {
         AtomicBoolean delayFlag = new AtomicBoolean(false);
         Duration maxDuration = Duration.ofMillis(10);
         Mono<String> helloMono = Mono.defer(() ->
-                getLockedMono(getMono4Test(innerCounter, maxConcurrentInvocations, delayFlag).log(),
+                getLockedMono(getMono4Test(innerCounter, maxConcurrentInvocations, delayFlag),
                         maxDuration));
 
         Mono.fromRunnable(() -> delayFlag.set(true))

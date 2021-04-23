@@ -21,6 +21,7 @@ import com.github.alexpumpkin.reactorlock.concurrency.impl.InMemoryUnlockEventsR
 import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
 import reactor.core.publisher.Sinks;
 import reactor.util.retry.Retry;
 
@@ -56,8 +57,9 @@ public final class LockMono<K> {
                 .build();
         this.maxLockDuration = maxLockDuration;
         Sinks.Many<Integer> sinksMany = Sinks.many().unicast().onBackpressureBuffer();
-        this.unlockEventSink = unlockCode -> sinksMany.emitNext(unlockCode, Sinks.EmitFailureHandler.FAIL_FAST);
-        this.unlockEvents = sinksMany.asFlux().log();
+        this.unlockEventSink = unlockCode -> sinksMany.emitNext(unlockCode, (signalType, emitResult) ->
+                signalType == SignalType.ON_NEXT && emitResult == Sinks.EmitResult.FAIL_NON_SERIALIZED);
+        this.unlockEvents = sinksMany.asFlux();
         this.reactorLock = reactorLock;
         this.unlockEventsRegistry = unlockEventsRegistry;
     }
